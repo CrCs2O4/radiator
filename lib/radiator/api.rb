@@ -32,7 +32,7 @@ module Radiator
   #     puts response.error
   #     exit
   #   end
-  #   
+  #
   #   virtual_supply = response.result.virtual_supply
   #
   # ... or ...
@@ -43,7 +43,7 @@ module Radiator
   #       puts error
   #       exis
   #     end
-  #     
+  #
   #     prop.virtual_supply
   #   end
   #
@@ -133,11 +133,11 @@ module Radiator
   #
   class Api
     include Utils
-    
+
     DEFAULT_STEEM_URL = 'https://api.steemit.com'
-    
+
     DEFAULT_GOLOS_URL = 'https://ws.golos.io'
-    
+
     DEFAULT_STEEM_FAILOVER_URLS = [
       DEFAULT_STEEM_URL,
       'https://api.steemitstage.com',
@@ -147,7 +147,7 @@ module Radiator
       'https://steemd.privex.io',
       'https://rpc.steemliberator.com'
     ]
-    
+
     DEFAULT_GOLOS_FAILOVER_URLS = [
       DEFAULT_GOLOS_URL,
       'https://api.golos.cf',
@@ -156,16 +156,16 @@ module Radiator
       # not recommended, requires option ssl_verify_mode: OpenSSL::SSL::VERIFY_NONE
       # 'https://golos-seed.arcange.eu',
     ]
-    
+
     # @private
     POST_HEADERS = {
       'Content-Type' => 'application/json',
       'User-Agent' => Radiator::AGENT_ID
     }
-    
+
     # @private
     HEALTH_URI = '/health'
-    
+
     def self.default_url(chain)
       case chain.to_sym
       when :steem then DEFAULT_STEEM_URL
@@ -173,7 +173,7 @@ module Radiator
       else; raise ApiError, "Unsupported chain: #{chain}"
       end
     end
-    
+
     def self.default_failover_urls(chain)
       case chain.to_sym
       when :steem then DEFAULT_STEEM_FAILOVER_URLS
@@ -181,7 +181,7 @@ module Radiator
       else; raise ApiError, "Unsupported chain: #{chain}"
       end
     end
-    
+
     # Cretes a new instance of Radiator::Api.
     #
     # Examples:
@@ -210,40 +210,30 @@ module Radiator
       @max_requests = options[:max_requests] || 30
       @ssl_verify_mode = options[:ssl_verify_mode] || OpenSSL::SSL::VERIFY_PEER
       @ssl_version = options[:ssl_version]
-      
+
       if @failover_urls.nil?
         @failover_urls = Api::default_failover_urls(@chain) - [@url]
       end
-      
+
       @failover_urls = [@failover_urls].flatten.compact
       @preferred_failover_urls = @failover_urls.dup
-      
+
       unless @hashie_logger.respond_to? :warn
         @hashie_logger = Logger.new(@hashie_logger)
       end
-      
-      @recover_transactions_on_error = if options.keys.include? :recover_transactions_on_error
-        options[:recover_transactions_on_error]
-      else
-        true
-      end
-      
-      @persist = if options.keys.include? :persist
-        options[:persist]
-      else
-        true
-      end
-      
-      @reuse_ssl_sessions = if options.keys.include? :reuse_ssl_sessions
-        options[:reuse_ssl_sessions]
-      else
-        true
-      end
-      
+
+      @recover_transactions_on_error = options.keys.include?(:recover_transactions_on_error) ? \
+          options[:recover_transactions_on_error] : true
+
+      @persist = options.keys.include?(:persist) ? options[:persist] : true
+
+      @reuse_ssl_sessions = options.keys.include?(:reuse_ssl_sessions) ? \
+        options[:reuse_ssl_sessions] : true
+
       if defined? Net::HTTP::Persistent::DEFAULT_POOL_SIZE
         @pool_size = options[:pool_size] || Net::HTTP::Persistent::DEFAULT_POOL_SIZE
       end
-      
+
       Hashie.logger = @hashie_logger
       @method_names = nil
       @http_memo = {}
@@ -251,10 +241,10 @@ module Radiator
       @api = nil
       @block_api = nil
       @backoff_at = nil
-      
+
       ObjectSpace.define_finalizer(self, self.class.finalize(@logger, @hashie_logger))
     end
-    
+
     # Get a specific block or range of blocks.
     #
     # Example:
@@ -276,7 +266,7 @@ module Radiator
     # @return [Array]
     def get_blocks(block_number, &block)
       block_number = [*(block_number)].flatten
-      
+
       if !!block
         block_number.each do |i|
           yield block_api.get_block(i).result, i
@@ -287,7 +277,7 @@ module Radiator
         end
       end
     end
-    
+
     # Find a specific block.
     #
     # Example:
@@ -302,7 +292,7 @@ module Radiator
     #   transactions = api.find_block(12345678) do |block|
     #     block.transactions
     #   end
-    # 
+    #
     # @param block_number [Fixnum]
     # @param block the block to execute for each result, optional.
     # @return [Hash]
@@ -313,7 +303,7 @@ module Radiator
         api.get_blocks(block_number).first
       end
     end
-    
+
     # Find a specific account.
     #
     # Example:
@@ -328,7 +318,7 @@ module Radiator
     #   vesting_shares = api.find_account('ned') do |ned|
     #     ned.vesting_shares
     #   end
-    # 
+    #
     # @param id [String] Name of the account to find.
     # @param block the block to execute for each result, optional.
     # @return [Hash]
@@ -339,20 +329,20 @@ module Radiator
         api.get_accounts([id]).result.first
       end
     end
-    
+
     # Returns the current base (STEEM) price in the vest asset (VESTS).
     #
     def base_per_mvest
       api.get_dynamic_global_properties do |properties|
         total_vesting_fund_steem = properties.total_vesting_fund_steem.to_f
         total_vesting_shares_mvest = properties.total_vesting_shares.to_f / 1e6
-      
+
         total_vesting_fund_steem / total_vesting_shares_mvest
       end
     end
-    
+
     alias steem_per_mvest base_per_mvest
-    
+
     # Returns the current base (STEEM) price in the debt asset (SBD).
     #
     def base_per_debt
@@ -362,13 +352,13 @@ module Radiator
         base = base.split(' ').first.to_f
         quote = current_median_history.quote
         quote = quote.split(' ').first.to_f
-        
+
         (base / quote) * steem_per_mvest
       end
     end
-    
+
     alias steem_per_usd base_per_debt
-    
+
     # Stops the persistant http connections.
     #
     def shutdown
@@ -386,30 +376,30 @@ module Radiator
       @block_api.shutdown if !!@block_api && @block_api != self
       @block_api = nil
     end
-    
+
     # @private
     def method_names
       return @method_names if !!@method_names
-      
+
       @method_names = Radiator::Api.methods(api_name).map do |e|
         e['method'].to_sym
       end
     end
-    
+
     # @private
     def api_name
       :database_api
     end
-    
+
     # @private
     def respond_to_missing?(m, include_private = false)
       method_names.include?(m.to_sym)
     end
-    
+
     # @private
     def method_missing(m, *args, &block)
       super unless respond_to_missing?(m)
-      
+
       current_rpc_id = rpc_id
       method_name = [api_name, m].join('.')
       response = nil
@@ -419,33 +409,33 @@ module Radiator
         id: current_rpc_id,
         method: "call"
       }
-      
+
       tries = 0
       timestamp = Time.now.utc
-      
+
       loop do
         tries += 1
-        
+
         if tries > 5 && flappy? && !check_file_open?
           raise ApiError, 'PANIC: Out of file resources'
         end
-        
+
         begin
           if tries > 1 && @recover_transactions_on_error && api_name == :network_broadcast_api
             signatures, exp = extract_signatures(options)
-            
+
             if !!signatures && signatures.any?
               offset = [(exp - timestamp).abs, 30].min
-              
+
               if !!(response = recover_transaction(signatures, current_rpc_id, timestamp - offset))
                 response = Hashie::Mash.new(response)
               end
             end
           end
-          
+
           if response.nil?
             response = request(options)
-            
+
             response = if response.nil?
               error "No response, retrying ...", method_name
             elsif !response.kind_of? Net::HTTPSuccess
@@ -455,7 +445,7 @@ module Radiator
               when '200'
                 body = response.body
                 response = JSON[body]
-                
+
                 if response['id'] != options[:id]
                   warning "Unexpected rpc_id (expected: #{options[:id]}, got: #{response['id']}), retrying ...", method_name, true
                 elsif response.keys.include?('error')
@@ -501,7 +491,7 @@ module Radiator
         #   warning "Unknown exception from request, retrying ...", method_name, true
         #   warning e
         end
-        
+
         if !!response
           if !!block
             return yield(response.result, response.error, response.id)
@@ -513,20 +503,20 @@ module Radiator
         backoff
       end # loop
     end
-    
+
     def inspect
       properties = %w(
         chain url backoff_at max_requests ssl_verify_mode ssl_version persist
         recover_transactions_on_error reuse_ssl_sessions pool_size
       ).map do |prop|
         if !!(v = instance_variable_get("@#{prop}"))
-          "@#{prop}=#{v}" 
+          "@#{prop}=#{v}"
         end
       end.compact.join(', ')
-      
+
       "#<#{self.class.name} [#{properties}]>"
     end
-    
+
     def stopped?
       http_active = if @http_memo.nil?
         false
@@ -539,21 +529,21 @@ module Radiator
           end
         end.include?(true)
       end
-      
+
       @uri.nil? && @http_id.nil? && !http_active && @api.nil? && @block_api.nil?
     end
   private
     def self.methods_json_path
       @methods_json_path ||= "#{File.dirname(__FILE__)}/methods.json"
     end
-    
+
     def self.methods(api_name)
       @methods ||= {}
       @methods[api_name] ||= JSON[File.read methods_json_path].map do |e|
         e if e['api'].to_sym == api_name
       end.compact.freeze
     end
-    
+
     def self.apply_http_defaults(http, ssl_verify_mode)
       http.read_timeout = 10
       http.open_timeout = 10
@@ -561,75 +551,75 @@ module Radiator
       http.ssl_timeout = 30 if defined? http.ssl_timeout
       http
     end
-    
+
     def api
       @api ||= self.class == Api ? self : Api.new(@api_options)
     end
-    
+
     def block_api
       @block_api ||= self.class == BlockApi ? self : BlockApi.new(@api_options)
     end
-    
+
     def rpc_id
       @rpc_id ||= 0
       @rpc_id = @rpc_id + 1
     end
-    
+
     def uri
       @uri ||= URI.parse(@url)
     end
-    
+
     def http_id
       @http_id ||= "radiator-#{Radiator::VERSION}-#{api_name}-#{SecureRandom.uuid}"
     end
-    
+
     def http
       return @http_memo[http_id] if @http_memo.keys.include? http_id
-      
+
       @http_memo[http_id] = if @persist
         idempotent = api_name != :network_broadcast_api
-        
+
         http = if defined? Net::HTTP::Persistent::DEFAULT_POOL_SIZE
           Net::HTTP::Persistent.new(name: http_id, pool_size: @pool_size)
         else
           # net-http-persistent < 3.0
           Net::HTTP::Persistent.new(http_id)
         end
-        
+
         http.keep_alive = 30
         http.idle_timeout = idempotent ? 10 : nil
         http.max_requests = @max_requests
         http.retry_change_requests = idempotent
         http.reuse_ssl_sessions = @reuse_ssl_sessions
-        
+
         http
       else
         http = Net::HTTP.new(uri.host, uri.port)
         http.use_ssl = uri.scheme == 'https'
         http
       end
-      
+
       Api::apply_http_defaults(@http_memo[http_id], @ssl_verify_mode)
     end
-    
+
     def post_request
       Net::HTTP::Post.new uri.request_uri, POST_HEADERS
     end
-    
+
     def request(options)
       request = post_request
       request.body = JSON[options]
-      
+
       case http
       when Net::HTTP::Persistent then http.request(uri, request)
       when Net::HTTP then http.request(request)
       else; raise ApiError, "Unsuppored scheme: #{http.inspect}"
       end
     end
-    
+
     def recover_transaction(signatures, expected_rpc_id, after)
       debug "Looking for signatures: #{signatures.map{|s| s[0..5]}} since: #{after}"
-      
+
       count = 0
       start = Time.now.utc
       block_range = api.get_dynamic_global_properties do |properties|
@@ -637,16 +627,16 @@ module Radiator
         low = high - 100
         [*(low..(high))].reverse
       end
-      
+
       # It would be nice if Steemit, Inc. would add an API method like
       # `get_transaction`, call it `get_transaction_by_signature`, so we didn't
       # have to scan the latest blocks like this.  At most, we read 100 blocks
       # but we also give up once the block time is before the `after` argument.
-      
+
       api.get_blocks(block_range) do |block, block_num|
         count += 1
         raise ApiError, "Race condition detected on remote node at: #{block_num}" if block.nil?
-        
+
         # TODO Some blockchains (like Golos) do not have transaction_ids.  In
         # the future, it would be better to decode the operation and signature
         # into the transaction id.
@@ -656,15 +646,15 @@ module Radiator
           @recover_transactions_on_error = false
           return
         end
-        
+
         timestamp = Time.parse(block.timestamp + 'Z')
         break if timestamp < after
-        
+
         block.transactions.each_with_index do |tx, index|
           next unless ((tx['signatures'] || []) & signatures).any?
-          
+
           debug "Found transaction #{count} block(s) ago; took #{(Time.now.utc - start)} seconds to scan."
-          
+
           return {
             id: expected_rpc_id,
             recovered_by: http_id,
@@ -677,38 +667,38 @@ module Radiator
           }
         end
       end
-      
+
       debug "Could not find transaction in #{count} block(s); took #{(Time.now.utc - start)} seconds to scan."
-      
+
       return nil
     end
-    
+
     def reset_failover
       @url = @preferred_url.dup
       @failover_urls = @preferred_failover_urls.dup
       warning "Failover reset, going back to #{@url} ..."
     end
-    
+
     def pop_failover_url
       reset_failover if @failover_urls.none?
-      
+
       until @failover_urls.none? || healthy?(url = @failover_urls.sample)
         @failover_urls.delete(url)
       end
-      
+
       url || (uri || @url).to_s
     end
-    
+
     def bump_failover
       @uri = nil
       @url = pop_failover_url
       warning "Failing over to #{@url} ..."
     end
-    
+
     def flappy?
       !!@backoff_at && Time.now.utc - @backoff_at < 300
     end
-    
+
     def drop_current_failover_url(prefix)
       if @preferred_failover_urls.size == 1
         warning "Node #{uri} appears to be misconfigured but no other node is available, retrying ...", prefix
@@ -718,33 +708,33 @@ module Radiator
         @failover_urls.delete(uri)
       end
     end
-   
+
     def handle_error(response, request_options, method_name, tries)
       parser = ErrorParser.new(response)
       _signatures, exp = extract_signatures(request_options)
-      
+
       if (!!exp && exp < Time.now.utc) || tries > 2
         # Whatever the error was, it is already expired or tried too much.  No
         # need to try to recover.
-        
+
         debug "Error code #{parser} but transaction already expired or too many tries, giving up (attempt: #{tries})."
       elsif parser.can_retry?
         drop_current_failover_url method_name if !!exp && parser.expiry?
         debug "Error code #{parser} (attempt: #{tries}), retrying ..."
         return nil
       end
-      
+
       if !!parser.trx_id
         # Turns out, the ErrorParser found a transaction id.  It might come in
         # handy, so let's append this to the result along with the error.
-        
+
         response[:result] = {
           id: parser.trx_id,
           block_num: -1,
           trx_num: -1,
           expired: false
         }
-        
+
         if @recover_transactions_on_error
           begin
             # Node operators often disable this operation.
@@ -761,21 +751,21 @@ module Radiator
           end
         end
       end
-      
+
       Hashie::Mash.new(response)
     end
-    
+
     def healthy?(url)
       begin
         # Note, not all nodes support the /health uri.  But even if they don't,
         # they'll respond status code 200 OK, even if the body shows an error.
-        
+
         # But if the node supports the /health uri, it will do additional
         # verifications on the block height.
         # See: https://github.com/steemit/steem/blob/master/contrib/healthcheck.sh
-        
+
         # Also note, this check is done **without** net-http-persistent.
-        
+
         !!open(url + HEALTH_URI)
       rescue => e
         error "Health check failure for #{url}: #{e.inspect}"
@@ -783,34 +773,34 @@ module Radiator
         false
       end
     end
-    
+
     def check_file_open?
       File.exists?('.')
     rescue
       false
     end
-    
+
     def backoff
       shutdown
       bump_failover if flappy? || !healthy?(uri)
       @backoff_at ||= Time.now.utc
       @backoff_sleep ||= 0.01
-      
+
       @backoff_sleep *= 2
       sleep @backoff_sleep
     ensure
       if !!@backoff_at && Time.now.utc - @backoff_at > 300
-        @backoff_at = nil 
+        @backoff_at = nil
         @backoff_sleep = nil
       end
     end
-    
+
     def self.finalize(logger, hashie_logger)
       proc {
         if !!logger && defined?(logger.close) && !logger.closed?
           logger.close
         end
-        
+
         if !!hashie_logger && defined?(hashie_logger.close) && !hashie_logger.closed?
           hashie_logger.close
         end
